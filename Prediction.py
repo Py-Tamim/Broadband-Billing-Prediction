@@ -110,3 +110,8 @@ for i in range(len(months)):
     summary.append(row)
 
 summary = pd.DataFrame(summary)
+
+x= summary[["month_no"]]                                   #Train the model
+sales_model = LinearRegression().fit(x, summary["sales"])
+capacity_model = LinearRegression().fit(x, summary["capacity"])
+avg_new= summary["new_links"].mean()
