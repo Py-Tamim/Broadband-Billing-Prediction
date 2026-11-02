@@ -104,6 +104,7 @@ for i in range(len(months)):
         change = now.loc[both_ids, "qty"] - before.loc[both_ids, "qty"]
  
         row["new_links"] = len(new_ids)
+        
         row["terminations"] = len(gone_ids)
         row["upgrades"] = (change > 0).sum()
         row["downgrades"] = (change < 0).sum()
@@ -112,6 +113,33 @@ for i in range(len(months)):
 summary = pd.DataFrame(summary)
 
 x= summary[["month_no"]]                                   #Train the model
-sales_model = LinearRegression().fit(x, summary["sales"])
+sales_model = LinearRegression().fit(x, summary["sales"])  # LinearRegression ML Model
 capacity_model = LinearRegression().fit(x, summary["capacity"])
 avg_new= summary["new_links"].mean()
+avg_term= summary["terminations"].mean()
+avg_up= summary["upgrades"].mean()
+avg_down= summary["downgrades"].mean()
+
+data=[]
+for i in range(len(months) - 1):
+    this_month = links[links["month"] == months[i]].copy()
+    next_month_ids = links[links["month"] == months[i + 1]]["link_id"].values
+    this_month["left"] = (~this_month["link_id"].isin(next_month_ids)).astype(int)
+ 
+    # links moved to LH did not really leave, so we remove them
+    moved = (this_month["left"] == 1) & (this_month["remark"] == "shift to LH")
+    data.append(this_month[~moved])
+ 
+data = pd.concat(data)
+ 
+features = ["qty", "age_months", "days", "stopped_early"]
+churn_model = RandomForestClassifier(n_estimators=200, max_depth=4,          # RandomForestClassifier ML Model
+                                     min_samples_leaf=3,
+                                     class_weight="balanced", 
+                                     random_state=1)
+
+churn_model.fit(data[features], data["left"]) 
+folds = StratifiedKFold(n_splits=4, shuffle=True, random_state=1)
+score = cross_val_score(churn_model, data[features], data["left"],
+                        cv=folds, scoring="roc_auc").mean()
+
