@@ -129,11 +129,17 @@ for i in range(len(months)):
     summary.append(row)
 
 summary = pd.DataFrame(summary)
-#============================================================================
 
-#Rest of the code Update Soon.............................
+x = summary[["month_no"]]                                   #Train the model
+sales_model = LinearRegression().fit(x, summary["sales"])   # LinearRegression ML Model
+capacity_model = LinearRegression().fit(x, summary["capacity"])
+avg_new = summary["new_links"].mean()
+avg_term = summary["terminations"].mean()
+avg_up = summary["upgrades"].mean()
+avg_down = summary["downgrades"].mean()
+# average % and average real number, used for prediction
+avg_vals = {c: summary[c].astype(float).mean() for c in pct_cols + abs_cols}
 
-#============================================================================
 
 month_list = ["jan", "feb", "mar", "apr", "may", "jun",                    # For output part
               "jul", "aug", "sep", "oct", "nov", "dec"]
