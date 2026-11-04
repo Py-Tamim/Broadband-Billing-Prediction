@@ -61,6 +61,74 @@ same_month = ((bill["bill_end"].dt.year == end_of_month.dt.year)
               & (bill["bill_end"].dt.month == end_of_month.dt.month))
 bill = bill[same_month]
 
+mrc_of_link = bill.groupby(["month", "link_id"])["mrc"].sum()
+bill = bill.sort_values("bill_end")
+links = bill.groupby(["month", "link_id"]).tail(1).copy()
+links = links.set_index(["month", "link_id"])
+links["mrc"] = mrc_of_link
+links = links.reset_index()
+
+months = sorted(links["month"].unique())             #Monthly summarization
+groups = ["new", "term", "up", "down"]
+pct_cols = []
+abs_cols = []
+for g in groups:
+    pct_cols += [g + "_cap_pct", g + "_sales_pct"]
+    abs_cols += [g + "_cap_abs", g + "_sales_abs"]
+
+summary = []
+for i in range(len(months)):
+    m = months[i]
+    now = links[links["month"] == m].set_index("link_id")
+    row = {
+        "month_no": m,
+        "sales": sales[m],
+        "capacity": now["qty"].sum(),
+        "active_links": len(now),
+        "new_links": None,
+        "terminations": None,
+        "upgrades": None,
+        "downgrades": None,
+    }
+    for c in pct_cols + abs_cols:
+        row[c] = None
+    if i > 0:
+        before = links[links["month"] == months[i - 1]].set_index("link_id")
+        new_ids = now.index.difference(before.index)
+        gone_ids = before.index.difference(now.index)
+        both_ids = now.index.intersection(before.index)
+        moved = before.loc[gone_ids, "remark"] == "shift to LH"
+        gone_ids = gone_ids[~moved.values]
+
+        cap_change = now.loc[both_ids, "qty"] - before.loc[both_ids, "qty"]
+        mrc_change = now.loc[both_ids, "mrc"] - before.loc[both_ids, "mrc"]
+        up_ids = cap_change[cap_change > 0].index
+        down_ids = cap_change[cap_change < 0].index
+
+        row["new_links"] = len(new_ids)
+        row["terminations"] = len(gone_ids)
+        row["upgrades"] = len(up_ids)
+        row["downgrades"] = len(down_ids)
+        row["new_cap_abs"] = now.loc[new_ids, "qty"].sum()
+        row["new_sales_abs"] = now.loc[new_ids, "mrc"].sum()
+        row["term_cap_abs"] = -before.loc[gone_ids, "qty"].sum()
+        row["term_sales_abs"] = -before.loc[gone_ids, "mrc"].sum()
+        row["up_cap_abs"] = cap_change[up_ids].sum()
+        row["up_sales_abs"] = mrc_change[up_ids].sum()
+        row["down_cap_abs"] = cap_change[down_ids].sum()
+        row["down_sales_abs"] = mrc_change[down_ids].sum()
+        base_cap = before["qty"].sum()
+        base_mrc = before["mrc"].sum()
+        if base_cap == 0:
+            base_cap = 1
+        if base_mrc == 0:
+            base_mrc = 1
+        for g in groups:
+            row[g + "_cap_pct"] = row[g + "_cap_abs"] / base_cap * 100
+            row[g + "_sales_pct"] = row[g + "_sales_abs"] / base_mrc * 100
+    summary.append(row)
+
+summary = pd.DataFrame(summary)
 #============================================================================
 
 #Rest of the code Update Soon.............................
