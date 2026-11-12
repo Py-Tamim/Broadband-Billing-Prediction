@@ -5,13 +5,9 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-CSV_FILE = r"C:\Users\Muhtasim Fuad Tamim\Downloads\billing_part.csv"
-LAGS = 3
-
-def load_billing(path):
-    df = pd.read_csv(path)
+def load_billing():
+    df = pd.read_csv("billing_part.csv")
     df.columns = df.columns.str.strip()
-    # Drop blank separator rows and repeated headers from the export.
     df["month_date"] = pd.to_datetime(df["Month"], format="%y-%b", errors="coerce")
     df = df[df["month_date"].notna() & df["Link ID"].notna()].copy()
     df["Link ID"] = df["Link ID"].astype(str).str.strip()
