@@ -112,5 +112,39 @@ def main():
     if target < 1:
         sys.exit(f"Data starts from {first_month.strftime('%b %Y')}; enter that month or later.")
 
-    
-# -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_ Continue -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
+
+    if target <= last_month_no:
+        row = summary.iloc[target - 1]
+        print(f"Actual data for {title}")
+        reports = [("Actual", row["sales"], row["capacity"])]
+        p_active, changes = row["active_links"], row
+    else:
+        steps = target - last_month_no
+        print(f"Forecast for {title}")
+        sales_ets, sales_gb = forecast(summary, "sales", steps)
+        cap_ets, cap_gb = forecast(summary, "capacity", steps)
+        reports = [("ETS", sales_ets, cap_ets), ("Gradient boosting", sales_gb, cap_gb)]
+        averages = summary.iloc[1:][["new_links", "terminations", "upgrades", "downgrades"]].mean()
+        p_active = summary["active_links"].iloc[-1] + (averages["new_links"] - averages["terminations"]) * steps
+        changes = summary.iloc[1:].mean(numeric_only=True)
+
+    for model_name, predicted_sales, predicted_capacity in reports:
+        print(f"\n{model_name}")
+        print(f"Sales (BDT)        : {predicted_sales:,.0f}")
+        print(f"Capacity (Mbps)    : {predicted_capacity:,.0f}")
+        print(f"Active links       : {p_active:,.0f}")
+
+    if pd.isna(changes["new_links"]):
+        print("\nThis is the first month in the file, so there is nothing to compare with.")
+    else:
+        print("\nAverage monthly link changes and billing deltas:")
+        for label, key, group in [("New users", "new_links", "new"),
+                                  ("Users who may exit", "terminations", "term"),
+                                  ("Upgrades", "upgrades", "up"),
+                                  ("Downgrades", "downgrades", "down")]:
+            print(f"{label}: {changes[key]:.0f}")
+            print(f"  Capacity change: {changes[f'{group}_cap_pct']:+.1f}% or {changes[f'{group}_cap_abs']:+,.0f} Mbps")
+            print(f"  Sales change:    {changes[f'{group}_sales_pct']:+.1f}% or BDT {changes[f'{group}_sales_abs']:+,.0f}")
+
+if __name__ == "__main__":
+    main()
