@@ -66,4 +66,51 @@ def make_monthly_summary(df):
         rows.append(row)
     return pd.DataFrame(rows)
 
+
+def gradient_boost_forecast(values, target_month_no):
+    history = list(map(float, values))
+    features, targets = [], []
+    for i in range(3, len(history)):
+        features.append([i + 1, *history[i - 3:i][::-1]])
+        targets.append(history[i])
+    model = GradientBoostingRegressor(random_state=42).fit(features, targets)
+    for month_no in range(len(history) + 1, target_month_no + 1):
+        x = [[month_no, *history[-3:][::-1]]]
+        history.append(float(model.predict(x)[0]))
+    return history[target_month_no - 1]
+
+
+def forecast(summary, column, steps):
+    values = summary[column].astype(float).to_numpy()
+    ets = ExponentialSmoothing(values, trend="add", damped_trend=True,
+                               initialization_method="estimated").fit()
+    ets_value = float(ets.forecast(steps)[-1])
+    gb_value = gradient_boost_forecast(values, len(values) + steps)
+    return max(0, ets_value), max(0, gb_value)
+
+
+def main():
+    billing = load_billing()
+    if billing.empty:
+        sys.exit("No valid billing rows found. Check the CSV headers and Month values.")
+    summary = make_monthly_summary(billing)
+
+    month_text = input("Enter month (Aug / August): ").strip()[:3].title()
+    year_text = input("Enter year (2026 / 26): ").strip()
+    try:
+        month = list(calendar.month_abbr).index(month_text)
+        year = int(year_text)
+        year += 2000 if year < 100 else 0
+    except (ValueError, TypeError):
+        sys.exit("Wrong month or year, please try again.")
+
+    first_month = billing["month_date"].min()
+    target_date = pd.Timestamp(year=year, month=month, day=1)
+    target = (target_date.year - first_month.year) * 12 + target_date.month - first_month.month + 1
+    title = target_date.strftime("%b %Y")
+    last_month_no = len(summary)
+    if target < 1:
+        sys.exit(f"Data starts from {first_month.strftime('%b %Y')}; enter that month or later.")
+
+    
 # -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_ Continue -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
